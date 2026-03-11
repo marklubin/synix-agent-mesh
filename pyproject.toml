@@ -34,9 +34,6 @@ Issues = "https://github.com/marklubin/synix-agent-mesh/issues"
 synix-agent-mesh = "synix_agent_mesh.cli:cli"
 sam = "synix_agent_mesh.cli:cli"
 
-[tool.uv.sources]
-synix = { path = "/home/mark/synix", editable = true }
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
