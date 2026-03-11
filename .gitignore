@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.synix/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+uv.lock
+agent-mesh.toml

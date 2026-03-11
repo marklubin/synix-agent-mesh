@@ -1,0 +1,54 @@
+# synix-agent-mesh configuration
+# Copy to agent-mesh.toml and customize
+
+[mesh]
+name = "my-memory"
+port = 7433
+
+[viewer]
+port = 9471
+host = "127.0.0.1"
+
+# --- Sources ---
+# Each [sources.NAME] block defines a data source.
+# Set enabled = false to disable without removing.
+
+[sources.sessions]
+dir = "~/.claude/projects"
+patterns = ["**/*.jsonl"]
+description = "Live Claude Code sessions"
+
+[sources.exports]
+dir = "./sources"
+description = "Static ChatGPT/Claude exports"
+
+# [sources.notes]
+# dir = "~/notes"
+# patterns = ["**/*.md"]
+# description = "Personal notes and documents"
+# enabled = false
+
+# --- LLM ---
+# Used by transforms that need reasoning (episode summaries, rollups, etc.)
+
+[llm]
+provider = "openai-compatible"
+base_url = "https://api.kimi.com/coding/v1"
+model = "kimi-for-coding"
+temperature = 0.3
+max_tokens = 8192
+
+# --- Pipeline ---
+
+[pipeline]
+weekly_rollup = true
+work_status = true
+context_budget = 10000
+
+# --- Deploy hooks ---
+# Shell commands run after build completes.
+# {build_dir} is substituted with the actual build output path.
+
+[deploy]
+server_commands = []
+client_commands = []

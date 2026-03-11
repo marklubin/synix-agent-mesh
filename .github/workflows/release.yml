@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  id-token: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run pytest tests/ -v
+
+  publish:
+    needs: [test]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  smoke-test:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - name: Wait for PyPI propagation
+        run: sleep 30
+      - name: Install from PyPI
+        run: uv tool install synix-agent-mesh
+      - name: Verify CLI
+        run: |
+          sam --help
+          sam --version
