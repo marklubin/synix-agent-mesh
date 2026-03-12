@@ -156,6 +156,96 @@ async def run_local_client(config: AgentMeshConfig) -> None:
     await client.start()
 
 
+async def run_auto_builder(config: AgentMeshConfig) -> None:
+    """Watch source directories and trigger builds when new files appear.
+
+    Scans sources every ``scan_interval`` seconds.  When the file count
+    changes, waits ``cooldown`` seconds (letting more files land), then
+    runs a local build + release.  Build runs in a thread executor so
+    it doesn't block the event loop.
+    """
+    if not config.auto_build.enabled:
+        logger.info("Auto-build: disabled in config")
+        return
+
+    scan_interval = config.auto_build.scan_interval
+    cooldown = config.auto_build.cooldown
+
+    # Let the rest of the server start first
+    await asyncio.sleep(5)
+    logger.info(
+        "Auto-build: watching sources (scan every %ds, cooldown %ds)",
+        scan_interval,
+        cooldown,
+    )
+
+    def _count_source_files() -> int:
+        """Count files matching source patterns."""
+        total = 0
+        for src in config.sources:
+            if not src.enabled:
+                continue
+            src_dir = src.resolved_dir
+            if not src_dir.exists():
+                continue
+            for pattern in src.patterns:
+                total += sum(1 for _ in src_dir.glob(pattern))
+        return total
+
+    def _run_build() -> str:
+        """Run build + release synchronously (called in executor)."""
+        import synix
+
+        from synix_agent_mesh.pipeline import build_pipeline
+
+        pipeline = build_pipeline(config)
+        project = synix.open_project(str(config.project_dir))
+        project.set_pipeline(pipeline)
+        result = project.build()
+        project.release_to("local")
+        return f"{result.built} built, {result.cached} cached"
+
+    last_count = _count_source_files()
+    last_build_time = 0.0
+
+    while True:
+        await asyncio.sleep(scan_interval)
+
+        current_count = _count_source_files()
+        if current_count == last_count:
+            continue
+
+        # New files detected — wait for cooldown
+        import time
+
+        now = time.monotonic()
+        since_last = now - last_build_time if last_build_time > 0 else cooldown
+        if since_last < cooldown:
+            remaining = cooldown - since_last
+            logger.info(
+                "Auto-build: %d new files, waiting %.0fs cooldown",
+                current_count - last_count,
+                remaining,
+            )
+            await asyncio.sleep(remaining)
+
+        logger.info(
+            "Auto-build: file count changed %d → %d, starting build",
+            last_count,
+            current_count,
+        )
+
+        try:
+            loop = asyncio.get_event_loop()
+            summary = await loop.run_in_executor(None, _run_build)
+            last_build_time = time.monotonic()
+            last_count = _count_source_files()  # re-count after build
+            logger.info("Auto-build: complete (%s)", summary)
+        except Exception as exc:
+            logger.error("Auto-build: failed: %s", exc)
+            last_count = current_count  # update count to avoid retry loop
+
+
 async def serve(
     config: AgentMeshConfig,
     *,
@@ -183,6 +273,9 @@ async def serve(
 
     # Local client watcher (submits this machine's sessions)
     tasks.append(asyncio.create_task(run_local_client(config)))
+
+    # Auto-builder (watches sources, triggers builds)
+    tasks.append(asyncio.create_task(run_auto_builder(config)))
 
     # Viewer (threaded Flask)
     if viewer:

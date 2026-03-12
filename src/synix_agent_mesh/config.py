@@ -71,6 +71,15 @@ class PipelineConfig:
 
 
 @dataclass
+class AutoBuildConfig:
+    """Auto-build settings for sam serve."""
+
+    enabled: bool = True
+    cooldown: int = 300  # seconds between builds
+    scan_interval: int = 60  # seconds between source scans
+
+
+@dataclass
 class DeployConfig:
     """Deploy hook settings."""
 
@@ -88,6 +97,7 @@ class AgentMeshConfig:
     sources: list[SourceConfig] = field(default_factory=list)
     llm: LLMConfig = field(default_factory=LLMConfig)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
+    auto_build: AutoBuildConfig = field(default_factory=AutoBuildConfig)
     deploy: DeployConfig = field(default_factory=DeployConfig)
 
 
@@ -159,6 +169,14 @@ def _parse_config(raw: dict, project_dir: Path) -> AgentMeshConfig:
         context_budget=pipeline_raw.get("context_budget", 10000),
     )
 
+    # Auto-build
+    auto_build_raw = raw.get("auto_build", {})
+    auto_build = AutoBuildConfig(
+        enabled=auto_build_raw.get("enabled", True),
+        cooldown=int(auto_build_raw.get("cooldown", 300)),
+        scan_interval=int(auto_build_raw.get("scan_interval", 60)),
+    )
+
     # Deploy
     deploy_raw = raw.get("deploy", {})
     deploy = DeployConfig(
@@ -173,5 +191,6 @@ def _parse_config(raw: dict, project_dir: Path) -> AgentMeshConfig:
         sources=sources,
         llm=llm,
         pipeline=pipeline,
+        auto_build=auto_build,
         deploy=deploy,
     )

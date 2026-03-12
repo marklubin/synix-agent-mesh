@@ -151,3 +151,26 @@ model = "original-model"
     assert config.llm.model == "override-model"
     # base_url not overridden
     assert config.llm.base_url == "http://original"
+
+
+def test_auto_build_defaults(tmp_path):
+    """Auto-build defaults to enabled with sane intervals."""
+    config = _parse_config({}, tmp_path)
+    assert config.auto_build.enabled is True
+    assert config.auto_build.cooldown == 300
+    assert config.auto_build.scan_interval == 60
+
+
+def test_auto_build_custom(tmp_path):
+    """Auto-build config is parsed from TOML."""
+    raw = {
+        "auto_build": {
+            "enabled": False,
+            "cooldown": 600,
+            "scan_interval": 30,
+        },
+    }
+    config = _parse_config(raw, tmp_path)
+    assert config.auto_build.enabled is False
+    assert config.auto_build.cooldown == 600
+    assert config.auto_build.scan_interval == 30
