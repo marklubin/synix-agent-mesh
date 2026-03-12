@@ -134,9 +134,12 @@ host = "0.0.0.0"
 dir = "./data"
 """)
 
+    mock_viewer = MagicMock()
+    mock_viewer.serve = MagicMock(side_effect=KeyboardInterrupt)
+
     with (
         patch("synix.open_project") as mock_open,
-        patch("synix.viewer.serve", side_effect=KeyboardInterrupt),
+        patch.dict("sys.modules", {"synix.viewer": mock_viewer}),
     ):
         mock_project = MagicMock()
         mock_open.return_value = mock_project
