@@ -9,7 +9,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from synix_agent_mesh.config import AgentMeshConfig, load_config
+from synix_agent_mesh.config import AgentMeshConfig
 from synix_agent_mesh.setup import KNOWN_AGENTS, MCP_SERVER_NAME
 
 console = Console()
@@ -338,7 +338,7 @@ def check_llm(config: AgentMeshConfig, test_connectivity: bool = True) -> Catego
                 base_url=config.llm.base_url,
                 timeout=10,
             )
-            resp = client.chat.completions.create(
+            client.chat.completions.create(
                 model=config.llm.model,
                 messages=[{"role": "user", "content": "ping"}],
                 max_tokens=5,

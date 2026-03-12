@@ -1,11 +1,10 @@
 """Tests for health check engine."""
 
 import json
-from pathlib import Path
 
 import pytest
 
-from synix_agent_mesh.config import AgentMeshConfig, MeshConfig, SourceConfig, LLMConfig, PipelineConfig
+from synix_agent_mesh.config import AgentMeshConfig, MeshConfig, SourceConfig
 from synix_agent_mesh.doctor import (
     check_build,
     check_project,

@@ -58,7 +58,10 @@ def setup(target_dir: str, name: str, mcp_url: str, agent_filter: str | None, no
 
 @cli.command()
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-@click.option("--check", "category", default=None, help="Run one category: project, sources, build, search, mcp, llm, mesh")
+@click.option(
+    "--check", "category", default=None,
+    help="Run one category: project, sources, build, search, mcp, llm, mesh",
+)
 @click.option("--no-llm-test", is_flag=True, help="Skip LLM connectivity test")
 @click.option("--mcp-port", default=8200, type=int, help="MCP port to check")
 def doctor(json_output: bool, category: str | None, no_llm_test: bool, mcp_port: int):

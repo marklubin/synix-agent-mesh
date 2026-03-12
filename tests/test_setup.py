@@ -1,10 +1,7 @@
 """Tests for agent detection, MCP auto-configuration, and context injection."""
 
 import json
-import os
 from pathlib import Path
-
-import pytest
 
 from synix_agent_mesh.setup import (
     KNOWN_AGENTS,
