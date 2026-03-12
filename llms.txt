@@ -1,0 +1,71 @@
+# sam
+
+> Persistent memory for coding agents. Watches your coding sessions, builds structured
+> searchable memory, serves it via MCP. Works with Claude Code, Cursor, Windsurf, Roo Code,
+> and any MCP-compatible agent. Cross-machine sync included.
+
+## Install
+
+```bash
+uv tool install synix-agent-mesh
+sam setup    # detects agents, configures MCP + behavioral rules
+sam serve    # starts memory server (mesh :7433, MCP :8200)
+sam doctor   # verify everything works
+```
+
+`sam setup` is safe to run multiple times — never overwrites, only appends. Use `--dry-run` to preview.
+
+## Key Concepts
+
+- **Sessions**: Raw coding conversations (JSONL files from Claude Code, etc.)
+- **Episodes**: LLM-summarized individual conversations
+- **Rollups**: Weekly and monthly summaries synthesized from episodes
+- **Synthesis**: Distilled context document + work status report
+- **Memory**: The searchable index of all processed content
+- **MCP**: Protocol for exposing memory tools to coding agents
+- **Mesh**: Cross-device session sync and artifact distribution
+
+## CLI
+
+| Command | Effect | Safe |
+|---------|--------|------|
+| `sam setup` | Detect agents, configure MCP + behavioral rules | Yes (idempotent) |
+| `sam setup --dry-run` | Preview setup without writing | Yes (read-only) |
+| `sam doctor` | Health check with fix suggestions | Yes (read-only) |
+| `sam serve` | Start memory server | Yes (Ctrl+C to stop) |
+| `sam build --local` | Process sessions into memory | Yes (incremental) |
+| `sam search "query"` | Search from command line | Yes (read-only) |
+| `sam join --server HOST:PORT` | Join mesh as client | Confirm first |
+| `sam sources add NAME DIR` | Add a data source | Yes |
+| `sam sources list` | List configured sources | Yes (read-only) |
+
+## MCP Tools (20 total)
+
+### Read (safe, autonomous)
+`search`, `get_artifact`, `get_flat_file`, `list_artifacts`, `list_layers`,
+`list_releases`, `show_release`, `lineage`, `list_refs`, `open_project`, `source_list`
+
+### Write (confirm first use)
+`init_project`, `load_pipeline`, `build`, `release`,
+`source_add_text`, `source_add_file`, `source_remove`
+
+### Destructive (always confirm)
+`clean`, `source_clear`
+
+## Agent Behavioral Integration
+
+`sam setup` injects instructions into each agent's behavioral config:
+
+| Agent | File | Mode |
+|-------|------|------|
+| Claude Code | `~/.claude/CLAUDE.md` | Append |
+| Cursor | `~/.cursor/rules/sam-memory.mdc` | Create |
+| Windsurf | `~/.codeium/windsurf/.windsurfrules` | Append |
+| Roo Code | `~/.roo/rules.md` | Append |
+
+These instructions tell the agent to:
+1. Call `memory_search` with the project name at session start
+2. Call `memory_get_flat_file("context-doc")` for synthesized project context
+3. Call `memory_get_flat_file("work-status-doc")` for active work status
+4. Search memory when encountering unfamiliar code or past decisions
+5. Never call `memory_clean` or `memory_source_clear` without user confirmation

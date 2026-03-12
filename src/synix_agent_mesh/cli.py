@@ -26,6 +26,64 @@ def cli():
 
 
 # ---------------------------------------------------------------------------
+# setup
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.option("--dir", "target_dir", default=".", help="Project directory")
+@click.option("--name", default="agent-memory", help="Mesh name")
+@click.option("--mcp-url", default="http://localhost:8200/mcp", help="MCP server URL")
+@click.option("--agent", "agent_filter", default=None, help="Configure only this agent")
+@click.option("--no-mcp", is_flag=True, help="Skip MCP auto-configuration")
+@click.option("--dry-run", is_flag=True, help="Show what would be configured")
+def setup(target_dir: str, name: str, mcp_url: str, agent_filter: str | None, no_mcp: bool, dry_run: bool):
+    """Detect agents, configure MCP, initialize project."""
+    from synix_agent_mesh.setup import run_setup
+
+    run_setup(
+        target_dir=target_dir,
+        name=name,
+        mcp_url=mcp_url,
+        agent_filter=agent_filter,
+        skip_mcp=no_mcp,
+        dry_run=dry_run,
+    )
+
+
+# ---------------------------------------------------------------------------
+# doctor
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+@click.option("--check", "category", default=None, help="Run one category: project, sources, build, search, mcp, llm, mesh")
+@click.option("--no-llm-test", is_flag=True, help="Skip LLM connectivity test")
+@click.option("--mcp-port", default=8200, type=int, help="MCP port to check")
+def doctor(json_output: bool, category: str | None, no_llm_test: bool, mcp_port: int):
+    """Check project health and diagnose issues."""
+    from synix_agent_mesh.config import load_config
+    from synix_agent_mesh.doctor import run_doctor
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        console.print("Run 'sam setup' to initialize.")
+        sys.exit(1)
+
+    categories = [category] if category else None
+    run_doctor(
+        config,
+        categories=categories,
+        json_output=json_output,
+        test_llm=not no_llm_test,
+        mcp_port=mcp_port,
+    )
+
+
+# ---------------------------------------------------------------------------
 # init
 # ---------------------------------------------------------------------------
 
