@@ -540,7 +540,15 @@ def view(release_name: str):
         console.print("Run 'sam build --local' first to create a release.")
         sys.exit(1)
 
-    url = f"http://{config.viewer.host}:{config.viewer.port}"
+    try:
+        from synix.viewer import serve as viewer_serve
+    except ImportError:
+        console.print("[red]Error:[/red] synix\\[viewer] extra not installed. Install with: pip install 'synix\\[viewer]'")
+        sys.exit(1)
+
+    # Use 127.0.0.1 for the browser URL even if bind host is 0.0.0.0
+    browser_host = "127.0.0.1" if config.viewer.host == "0.0.0.0" else config.viewer.host
+    url = f"http://{browser_host}:{config.viewer.port}"
     console.print(f"[green]Starting viewer at {url}[/green]")
     console.print(f"  Release: {release_name}")
 
@@ -551,7 +559,6 @@ def view(release_name: str):
 
     threading.Thread(target=_open_browser, daemon=True).start()
 
-    from synix.viewer import serve as viewer_serve
     viewer_serve(
         release,
         host=config.viewer.host,

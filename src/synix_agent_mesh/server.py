@@ -98,10 +98,17 @@ async def run_mcp_http(config: AgentMeshConfig, port: int = MCP_DEFAULT_PORT) ->
 
 
 def _resolve_viewer_release(project):
-    """Try to find a usable release for the viewer, returning the first that exists."""
-    for name in project.releases():
-        return project.release(name)
-    return None
+    """Try to find a usable release for the viewer.
+
+    Prefers the 'local' release (produced by ``sam build --local``),
+    then falls back to the first available release.
+    """
+    names = project.releases()
+    if not names:
+        return None
+    if "local" in names:
+        return project.release("local")
+    return project.release(names[0])
 
 
 def run_viewer(config: AgentMeshConfig) -> None:
