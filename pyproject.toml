@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
 ]
 dependencies = [
-    "synix[mesh,mcp]>=0.20.0",
+    "synix[mesh,mcp,viewer]>=0.20.0",
     "click>=8.0",
     "rich>=13.0",
 ]

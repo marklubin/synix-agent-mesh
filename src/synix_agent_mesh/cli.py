@@ -104,7 +104,6 @@ def init(target_dir: str, name: str):
 def serve(viewer: bool, mcp: bool, mcp_port: int):
     """Start mesh server + viewer + MCP HTTP server."""
     from synix_agent_mesh.config import load_config
-    from synix_agent_mesh.server import _has_viewer
     from synix_agent_mesh.server import serve as _serve
 
     try:
@@ -112,11 +111,6 @@ def serve(viewer: bool, mcp: bool, mcp_port: int):
     except FileNotFoundError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         sys.exit(1)
-
-    # Auto-disable viewer if synix-viewer not installed
-    if viewer and not _has_viewer():
-        console.print("[dim]  Viewer disabled (synix-viewer not installed)[/dim]")
-        viewer = False
 
     console.print(f"[green]Starting agent-mesh '[bold]{config.mesh.name}[/bold]'[/green]")
     console.print(f"  Mesh server:    0.0.0.0:{config.mesh.port}")
@@ -522,17 +516,12 @@ def sources_disable(name: str):
 
 
 @cli.command()
-@click.option("--build-dir", default=None, help="Build directory to view (auto-detected)")
-def view(build_dir: str | None):
+@click.option("--release", "release_name", default="local", help="Release to view (default: local)")
+def view(release_name: str):
     """Open the memory viewer in browser."""
     import webbrowser
 
     from synix_agent_mesh.config import load_config
-    from synix_agent_mesh.server import _has_viewer
-
-    if not _has_viewer():
-        console.print("[red]Error:[/red] synix-viewer not installed.")
-        sys.exit(1)
 
     try:
         config = load_config()
@@ -540,29 +529,29 @@ def view(build_dir: str | None):
         console.print(f"[red]Error:[/red] {exc}")
         sys.exit(1)
 
-    if build_dir is None:
-        # Try mesh build dir
-        from synix.mesh.config import resolve_mesh_root
-        build_path = resolve_mesh_root() / config.mesh.name / "server" / "build"
-
-        # Fallback to local release
-        if not build_path.exists():
-            build_path = config.project_dir / ".synix" / "releases" / "local"
-
-        if not build_path.exists():
-            console.print("[red]Error:[/red] No build output found. Run 'sam build --local' first.")
-            sys.exit(1)
-    else:
-        build_path = Path(build_dir).resolve()
+    import synix
+    try:
+        project = synix.open_project(str(config.project_dir))
+        release = project.release(release_name)
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        console.print("Run 'sam build --local' first to create a release.")
+        sys.exit(1)
 
     url = f"http://{config.viewer.host}:{config.viewer.port}"
     console.print(f"[green]Starting viewer at {url}[/green]")
-    console.print(f"  Build dir: {build_path}")
+    console.print(f"  Release: {release_name}")
 
     webbrowser.open(url)
 
-    from synix_agent_mesh.server import run_viewer
-    run_viewer(config, build_path)
+    from synix.viewer import serve as viewer_serve
+    viewer_serve(
+        release,
+        host=config.viewer.host,
+        port=config.viewer.port,
+        title=config.mesh.name,
+        project=project,
+    )
 
 
 # ---------------------------------------------------------------------------
