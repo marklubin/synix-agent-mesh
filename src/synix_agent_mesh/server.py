@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from pathlib import Path
 
 from synix_agent_mesh.config import AgentMeshConfig
 
@@ -98,45 +97,45 @@ async def run_mcp_http(config: AgentMeshConfig, port: int = MCP_DEFAULT_PORT) ->
     await server.serve()
 
 
-def _viewer_ready(build_dir: Path) -> bool:
-    """Check if a build directory has the files the viewer needs."""
-    if not build_dir.exists():
-        return False
-    return (build_dir / "manifest.json").exists() and (build_dir / "provenance.json").exists()
+def _resolve_viewer_release(project):
+    """Try to find a usable release for the viewer.
+
+    Prefers the 'local' release (produced by ``sam build --local``),
+    then falls back to the first available release.
+    """
+    names = project.releases()
+    if not names:
+        return None
+    if "local" in names:
+        return project.release("local")
+    return project.release(names[0])
 
 
-def _has_viewer() -> bool:
-    """Check if synix-viewer is installed."""
+def run_viewer(config: AgentMeshConfig) -> None:
+    """Start the synix viewer Flask app (blocking, meant for thread)."""
     try:
-        import synix_viewer  # noqa: F401
-
-        return True
+        import synix
+        from synix.viewer import serve as viewer_serve
     except ImportError:
-        return False
+        logger.warning("Viewer: synix[viewer] extra not installed — viewer disabled")
+        return
 
-
-def run_viewer(config: AgentMeshConfig, build_dir: Path) -> None:
-    """Start the synix-viewer Flask app (blocking, meant for thread)."""
     try:
-        import synix_viewer
-        from synix_viewer.server import create_app
+        project = synix.open_project(str(config.project_dir))
+        release = _resolve_viewer_release(project)
 
-        pkg_dir = Path(synix_viewer.__file__).resolve().parent
-        static_dir = pkg_dir.parent.parent / "static"
-
-        if not static_dir.is_dir():
-            logger.error("synix-viewer static directory not found at %s", static_dir)
+        if release is None:
+            logger.warning("Viewer: no releases found — run 'sam build --local' to populate")
             return
 
-        build_path = build_dir if build_dir.exists() else None
-        if build_path is None:
-            logger.warning("Viewer: no build directory at %s — starting without data", build_dir)
-
-        logger.info("Viewer: serving build from %s", build_path)
-        app = create_app(build_path, static_dir)
-        app.run(host=config.viewer.host, port=config.viewer.port, use_reloader=False)
-    except ImportError:
-        logger.warning("synix-viewer not installed — viewer disabled")
+        logger.info("Viewer: serving release '%s'", release.name)
+        viewer_serve(
+            release,
+            host=config.viewer.host,
+            port=config.viewer.port,
+            title=config.mesh.name,
+            project=project,
+        )
     except Exception as exc:
         logger.error("Viewer failed to start: %s", exc)
 
@@ -173,19 +172,6 @@ async def serve(
     """
     loop = asyncio.get_event_loop()
 
-    # Determine build output dir for viewer
-    from synix.mesh.config import resolve_mesh_root
-    mesh_root = resolve_mesh_root()
-    build_dir = mesh_root / config.mesh.name / "server" / "build"
-
-    # Fallback: try old unified-memory mesh build (has manifest.json + provenance.json)
-    if not _viewer_ready(build_dir):
-        build_dir = mesh_root / "unified-memory" / "server" / "build"
-
-    # Fallback: local release dir
-    if not _viewer_ready(build_dir):
-        build_dir = config.project_dir / ".synix" / "releases" / "local"
-
     tasks = []
 
     # Mesh server (async)
@@ -200,7 +186,7 @@ async def serve(
 
     # Viewer (threaded Flask)
     if viewer:
-        loop.run_in_executor(None, run_viewer, config, build_dir)
+        loop.run_in_executor(None, run_viewer, config)
 
     # Handle shutdown
     stop = asyncio.Event()
