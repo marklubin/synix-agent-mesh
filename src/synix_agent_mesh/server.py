@@ -97,20 +97,31 @@ async def run_mcp_http(config: AgentMeshConfig, port: int = MCP_DEFAULT_PORT) ->
     await server.serve()
 
 
+def _resolve_viewer_release(project):
+    """Try to find a usable release for the viewer, returning the first that exists."""
+    for name in project.releases():
+        return project.release(name)
+    return None
+
+
 def run_viewer(config: AgentMeshConfig) -> None:
     """Start the synix viewer Flask app (blocking, meant for thread)."""
     try:
         import synix
         from synix.viewer import serve as viewer_serve
+    except ImportError:
+        logger.warning("Viewer: synix[viewer] extra not installed — viewer disabled")
+        return
 
+    try:
         project = synix.open_project(str(config.project_dir))
+        release = _resolve_viewer_release(project)
 
-        try:
-            release = project.release("local")
-        except Exception:
-            logger.warning("Viewer: no 'local' release found — run 'sam build --local' to populate")
+        if release is None:
+            logger.warning("Viewer: no releases found — run 'sam build --local' to populate")
             return
 
+        logger.info("Viewer: serving release '%s'", release.name)
         viewer_serve(
             release,
             host=config.viewer.host,

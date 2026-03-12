@@ -519,6 +519,8 @@ def sources_disable(name: str):
 @click.option("--release", "release_name", default="local", help="Release to view (default: local)")
 def view(release_name: str):
     """Open the memory viewer in browser."""
+    import threading
+    import time
     import webbrowser
 
     from synix_agent_mesh.config import load_config
@@ -542,7 +544,12 @@ def view(release_name: str):
     console.print(f"[green]Starting viewer at {url}[/green]")
     console.print(f"  Release: {release_name}")
 
-    webbrowser.open(url)
+    # Open browser after a short delay so the server can bind first
+    def _open_browser():
+        time.sleep(1)
+        webbrowser.open(url)
+
+    threading.Thread(target=_open_browser, daemon=True).start()
 
     from synix.viewer import serve as viewer_serve
     viewer_serve(
