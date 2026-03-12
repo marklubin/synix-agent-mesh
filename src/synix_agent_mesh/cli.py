@@ -543,7 +543,10 @@ def view(release_name: str):
     try:
         from synix.viewer import serve as viewer_serve
     except ImportError:
-        console.print("[red]Error:[/red] synix\\[viewer] extra not installed. Install with: pip install 'synix\\[viewer]'")
+        console.print(
+            "[red]Error:[/red] synix\\[viewer] extra not installed."
+            " Install with: pip install 'synix\\[viewer]'"
+        )
         sys.exit(1)
 
     # Use 127.0.0.1 for the browser URL even if bind host is 0.0.0.0

@@ -508,6 +508,10 @@ Access at `http://<host>:9471` when running `sam serve` or `sam view`.
 
 The viewer serves data from synix releases. Run `sam build --local` to create a release, then `sam view` to browse it. When running `sam serve`, the viewer automatically picks the first available release.
 
+## Versioning
+
+synix-agent-mesh shadows synix's version number. Both packages share the same version (e.g., `0.20.2`). This keeps compatibility obvious: agent-mesh `0.20.x` works with synix `0.20.x`.
+
 ## Development
 
 ```bash

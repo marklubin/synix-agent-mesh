@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -65,7 +64,7 @@ def test_resolve_returns_none_when_empty():
 
 
 @pytest.fixture
-def project_dir(tmp_path):
+def project_dir(tmp_path, monkeypatch):
     """Create a minimal project directory with config."""
     config = tmp_path / "agent-mesh.toml"
     config.write_text("""
@@ -81,65 +80,43 @@ dir = "./data"
 description = "Test data"
 """)
     (tmp_path / "data").mkdir()
+    monkeypatch.chdir(tmp_path)
     return tmp_path
 
 
-def test_view_no_project(runner, tmp_path):
+def test_view_no_project(runner, tmp_path, monkeypatch):
     """sam view fails gracefully without project config."""
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(tmp_path)
-        result = runner.invoke(cli, ["view"])
-        assert result.exit_code != 0
-        assert "Error" in result.output
-    finally:
-        os.chdir(old_cwd)
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli, ["view"])
+    assert result.exit_code != 0
+    assert "Error" in result.output
 
 
 def test_view_missing_release(runner, project_dir):
     """sam view fails gracefully when the release doesn't exist."""
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(project_dir)
-        with patch("synix.open_project") as mock_open:
-            mock_project = MagicMock()
-            mock_open.return_value = mock_project
-            mock_project.release.side_effect = Exception("Release 'local' not found")
+    with patch("synix.open_project") as mock_open:
+        mock_project = MagicMock()
+        mock_open.return_value = mock_project
+        mock_project.release.side_effect = Exception("Release 'local' not found")
 
-            result = runner.invoke(cli, ["view"])
-            assert result.exit_code != 0
-            assert "Error" in result.output
-            assert "sam build" in result.output
-    finally:
-        os.chdir(old_cwd)
+        result = runner.invoke(cli, ["view"])
+        assert result.exit_code != 0
+        assert "Error" in result.output
+        assert "sam build" in result.output
 
 
 def test_view_import_error(runner, project_dir):
     """sam view shows clear error when synix[viewer] is missing."""
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(project_dir)
-        with patch("synix.open_project") as mock_open:
-            mock_project = MagicMock()
-            mock_open.return_value = mock_project
-            mock_release = MagicMock()
-            mock_project.release.return_value = mock_release
+    with patch("synix.open_project") as mock_open:
+        mock_project = MagicMock()
+        mock_open.return_value = mock_project
+        mock_project.release.return_value = MagicMock()
 
-            # Make 'from synix.viewer import serve' raise ImportError
-            import importlib
-            original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
-
-            def fake_import(name, *args, **kwargs):
-                if name == "synix.viewer":
-                    raise ImportError("No module named 'synix.viewer'")
-                return original_import(name, *args, **kwargs)
-
-            with patch("builtins.__import__", side_effect=fake_import):
-                result = runner.invoke(cli, ["view"])
-                assert result.exit_code != 0
-                assert "synix[viewer]" in result.output
-    finally:
-        os.chdir(old_cwd)
+        # Simulate missing synix.viewer by poisoning sys.modules
+        with patch.dict("sys.modules", {"synix.viewer": None}):
+            result = runner.invoke(cli, ["view"])
+            assert result.exit_code != 0
+            assert "synix[viewer]" in result.output
 
 
 def test_view_browser_url_uses_localhost(runner, project_dir):
@@ -157,23 +134,15 @@ host = "0.0.0.0"
 dir = "./data"
 """)
 
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(project_dir)
+    with (
+        patch("synix.open_project") as mock_open,
+        patch("synix.viewer.serve", side_effect=KeyboardInterrupt),
+    ):
+        mock_project = MagicMock()
+        mock_open.return_value = mock_project
+        mock_project.release.return_value = MagicMock()
 
-        with (
-            patch("synix.open_project") as mock_open,
-            patch("synix.viewer.serve", side_effect=KeyboardInterrupt) as mock_serve,
-        ):
-            mock_project = MagicMock()
-            mock_open.return_value = mock_project
-            mock_release = MagicMock()
-            mock_project.release.return_value = mock_release
+        result = runner.invoke(cli, ["view"], catch_exceptions=False)
 
-            result = runner.invoke(cli, ["view"], catch_exceptions=False)
-
-        # The URL printed should use 127.0.0.1, not 0.0.0.0
-        assert "http://127.0.0.1:9999" in result.output
-        assert "http://0.0.0.0" not in result.output
-    finally:
-        os.chdir(old_cwd)
+    assert "http://127.0.0.1:9999" in result.output
+    assert "http://0.0.0.0" not in result.output
